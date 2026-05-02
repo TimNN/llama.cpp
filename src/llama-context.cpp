@@ -3392,11 +3392,11 @@ float * llama_get_logits_ith(llama_context * ctx, int32_t i) {
 
     float * res = nullptr;
 
-    res = ctx->get_sampled_logits_ith(i);
-
-    if (!res) {
-        res = ctx->get_logits_ith(i);
-    }
+    // res = ctx->get_sampled_logits_ith(i);
+    //
+    // if (!res) {
+    res = ctx->get_logits_ith(i);
+    // }
 
     return res;
 }

@@ -2239,6 +2239,51 @@ void ggml_compute_forward_fill(const ggml_compute_params * params, ggml_tensor *
     ggml_compute_forward_fill_f32(params, dst);
 }
 
+// ggml_compute_top_n_sigma
+
+void ggml_compute_forward_top_n_sigma(const ggml_compute_params * params, ggml_tensor * dst) {
+    const float n = ggml_get_op_params_f32(dst, 0);
+
+    const ggml_tensor * logits = dst->src[0];
+    const int64_t n0 = logits->ne[0];
+
+    const float * logits_ptr = (const float *) logits->data;
+    float * dst_ptr = (float *) dst->data;
+
+    // find max logit and calculate mean
+    float max = logits_ptr[0];
+    float logits_sum = 0;
+    size_t valid_count = 0;
+    for (int64_t i = 0; i < n0; ++i) {
+        // Only count non-negative infinity values
+        if (logits_ptr[i] != -INFINITY) {
+            max = std::max(max, logits_ptr[i]);
+            logits_sum += logits_ptr[i];
+            valid_count++;
+        }
+    }
+    float mean = valid_count > 0 ? logits_sum/valid_count : 0;
+
+    // calculate standard deviation
+    float acc = 0;
+    for (int64_t i = 0; i < n0; ++i) {
+        // Skip -infinity in std calculation
+        if (logits_ptr[i] != -INFINITY) {
+            acc += pow(logits_ptr[i] - mean, 2);
+        }
+    }
+    float std = valid_count > 0 ? sqrt(acc/valid_count) : 0;
+
+    // apply mask
+    for (int64_t i = 0; i < n0; ++i) {
+        if (logits_ptr[i] < max - (n * std)) {
+            dst_ptr[i] = -INFINITY;
+        } else {
+            dst_ptr[i] = logits_ptr[i];
+        }
+    }
+}
+
 // ggml_compute_tri
 
 static void ggml_compute_forward_tri_f32(const ggml_compute_params * params, ggml_tensor * dst) {

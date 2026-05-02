@@ -1980,6 +1980,10 @@ static void ggml_compute_forward(struct ggml_compute_params * params, struct ggm
             {
                 ggml_compute_forward_fill(params, tensor);
             } break;
+        case GGML_OP_TOP_N_SIGMA:
+            {
+                ggml_compute_forward_top_n_sigma(params, tensor);
+            } break;
         case GGML_OP_FLASH_ATTN_EXT:
             {
                 ggml_compute_forward_flash_attn_ext(params, tensor);
@@ -2207,6 +2211,7 @@ static int ggml_get_n_tasks(struct ggml_tensor * node, int n_threads) {
             {
                 n_tasks = n_threads;
             } break;
+        case GGML_OP_TOP_N_SIGMA:
         case GGML_OP_SUB:
         case GGML_OP_SQR:
         case GGML_OP_SQRT:

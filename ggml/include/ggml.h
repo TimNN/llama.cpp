@@ -553,6 +553,7 @@ extern "C" {
         GGML_OP_LEAKY_RELU,
         GGML_OP_TRI,
         GGML_OP_FILL,
+        GGML_OP_TOP_N_SIGMA,
 
         GGML_OP_FLASH_ATTN_EXT,
         GGML_OP_FLASH_ATTN_BACK,
@@ -2549,6 +2550,11 @@ extern "C" {
             struct ggml_tensor  * g,
             struct ggml_tensor  * beta,
             struct ggml_tensor  * state);
+
+    GGML_API struct ggml_tensor * ggml_top_n_sigma(
+            struct ggml_context * ctx,
+            struct ggml_tensor  * logits,
+            float                 n);
 
     // custom operators
 

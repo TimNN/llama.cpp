@@ -1049,6 +1049,7 @@ static const char * GGML_OP_NAME[GGML_OP_COUNT] = {
     "LEAKY_RELU",
     "TRI",
     "FILL",
+    "TOP_N_SIGMA",
 
     "FLASH_ATTN_EXT",
     "FLASH_ATTN_BACK",
@@ -1080,7 +1081,7 @@ static const char * GGML_OP_NAME[GGML_OP_COUNT] = {
     "GLU",
 };
 
-static_assert(GGML_OP_COUNT == 96, "GGML_OP_COUNT != 96");
+static_assert(GGML_OP_COUNT == 97, "GGML_OP_COUNT != 97");
 
 static const char * GGML_OP_SYMBOL[GGML_OP_COUNT] = {
     "none",
@@ -1159,6 +1160,7 @@ static const char * GGML_OP_SYMBOL[GGML_OP_COUNT] = {
     "leaky_relu(x)",
     "tri(x)",
     "fill(x, c)",
+    "top_n_sigma(x, n)",
 
     "flash_attn_ext(x)",
     "flash_attn_back(x)",
@@ -1190,7 +1192,7 @@ static const char * GGML_OP_SYMBOL[GGML_OP_COUNT] = {
     "glu(x)",
 };
 
-static_assert(GGML_OP_COUNT == 96, "GGML_OP_COUNT != 96");
+static_assert(GGML_OP_COUNT == 97, "GGML_OP_COUNT != 97");
 
 static_assert(GGML_OP_POOL_COUNT == 2, "GGML_OP_POOL_COUNT != 2");
 
@@ -6224,6 +6226,26 @@ struct ggml_tensor * ggml_gated_delta_net(
     result->src[3] = g;
     result->src[4] = beta;
     result->src[5] = state;
+
+    return result;
+}
+
+// ggml_top_n_sigma
+
+struct ggml_tensor * ggml_top_n_sigma(
+            struct ggml_context * ctx,
+            struct ggml_tensor  * logits,
+            float                 n) {
+    GGML_ASSERT(logits->ne[1] == 1);
+    GGML_ASSERT(logits->ne[2] == 1);
+    GGML_ASSERT(logits->ne[3] == 1);
+    GGML_ASSERT(ggml_is_contiguous(logits));
+    GGML_ASSERT(logits->type == GGML_TYPE_F32);
+
+    struct ggml_tensor * result = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, logits->ne[0]);
+    result->op = GGML_OP_TOP_N_SIGMA;
+    result->src[0] = logits;
+    ggml_set_op_params_f32(result, 0, n);
 
     return result;
 }

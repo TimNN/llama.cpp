@@ -528,7 +528,8 @@ struct llama_sampler_backend {
 
     const char * get_name() {
         if (!is_init) {
-            return name.c_str();
+            name_ext = "#" + name;
+            return name_ext.c_str();
         }
 
         if (support) {
@@ -2768,12 +2769,13 @@ struct llama_sampler * llama_sampler_init_penalties(
 
 // top-n-sigma
 
-struct llama_sampler_top_n_sigma {
+struct llama_sampler_top_n_sigma : public llama_sampler_backend {
     const float n;
 };
 
-static const char * llama_sampler_top_n_sigma_name(const struct llama_sampler * /*smpl*/) {
-    return "top-n-sigma";
+static const char * llama_sampler_top_n_sigma_name(const struct llama_sampler * smpl) {
+    auto * sctx = (llama_sampler_top_n_sigma *) smpl->ctx;
+    return sctx->get_name();
 }
 
 static void llama_sampler_top_n_sigma_apply(struct llama_sampler * smpl, llama_token_data_array * cur_p) {
@@ -2813,8 +2815,6 @@ static void llama_sampler_top_n_sigma_apply(struct llama_sampler * smpl, llama_t
             cur_p->data[i].logit = -INFINITY;
         }
     }
-
-    llama_sampler_softmax_impl(cur_p, true);
 }
 
 static struct llama_sampler * llama_sampler_top_n_sigma_clone(const struct llama_sampler * smpl) {
@@ -2826,6 +2826,31 @@ static void llama_sampler_top_n_sigma_free(struct llama_sampler * smpl) {
     delete (llama_sampler_top_n_sigma *) smpl->ctx;
 }
 
+static bool llama_sampler_top_n_sigma_backend_init(
+        llama_sampler       * smpl,
+        ggml_backend_buffer_type_t   buft) {
+    auto * sctx = (llama_sampler_top_n_sigma *) smpl->ctx;
+
+    const bool res = llama_sampler_backend_support(smpl, buft);
+
+    sctx->init(res);
+
+    return res;
+}
+
+static void llama_sampler_top_n_sigma_backend_apply(
+        llama_sampler      * smpl,
+        ggml_context       * ctx,
+        ggml_cgraph        * gf,
+        llama_sampler_data * data) {
+    auto * sctx = (llama_sampler_top_n_sigma *) smpl->ctx;
+
+    data->logits = ggml_top_n_sigma(ctx, data->logits, sctx->n);
+    ggml_set_name(data->logits, "top_n_sigma_logits");
+
+    GGML_UNUSED(gf);
+}
+
 static struct llama_sampler_i llama_sampler_top_n_sigma_i = {
     /* .name              = */ llama_sampler_top_n_sigma_name,
     /* .accept            = */ nullptr,
@@ -2833,9 +2858,9 @@ static struct llama_sampler_i llama_sampler_top_n_sigma_i = {
     /* .reset             = */ nullptr,
     /* .clone             = */ llama_sampler_top_n_sigma_clone,
     /* .free              = */ llama_sampler_top_n_sigma_free,
-    /* .backend_init      = */ nullptr,
+    /* .backend_init      = */ llama_sampler_top_n_sigma_backend_init,
     /* .backend_accept    = */ nullptr,
-    /* .backend_apply     = */ nullptr,
+    /* .backend_apply     = */ llama_sampler_top_n_sigma_backend_apply,
     /* .backend_set_input = */ nullptr,
 };
 
@@ -2849,6 +2874,7 @@ struct llama_sampler * llama_sampler_init_top_n_sigma(float n) {
     return llama_sampler_init(
         /* .iface = */ &llama_sampler_top_n_sigma_i,
         /* .ctx   = */ new llama_sampler_top_n_sigma {
+            ("top-n-sigma"),
             /* .n = */ n,
         }
     );
