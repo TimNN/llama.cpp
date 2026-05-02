@@ -1035,6 +1035,8 @@ static const char * llama_sampler_dist_name(const struct llama_sampler * smpl) {
 
 static void llama_sampler_dist_apply(struct llama_sampler * smpl, llama_token_data_array * cur_p) {
     auto * ctx = (llama_sampler_dist *) smpl->ctx;
+    std::uniform_real_distribution<double> dist(0.0f, 1.0f);
+    const double rnd = dist(ctx->rng);
 
     // edge cases
     if (cur_p->size == 0) {
@@ -1069,8 +1071,6 @@ static void llama_sampler_dist_apply(struct llama_sampler * smpl, llama_token_da
     // sample from the obtained probabilities and normalize the probs in a single pass
     // this is ~3x faster on Mac with full gpt-oss vocab than the version below
     //
-    std::uniform_real_distribution<double> dist(0.0f, 1.0f);
-    const double rnd = dist(ctx->rng);
 
           double sum_run = 0.0f;
     const double sum_tgt = sum_cum*rnd;
