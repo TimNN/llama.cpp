@@ -1172,4 +1172,9 @@ typedef struct {
     int64_t  np;
 } ggml_metal_kargs_opt_step_sgd;
 
+typedef struct {
+    int64_t ne00;
+    float   n;
+} ggml_metal_kargs_top_n_sigma;
+
 #endif // GGML_METAL_IMPL

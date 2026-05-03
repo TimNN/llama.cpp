@@ -1,13 +1,13 @@
 #include "llama-sampler.h"
 
+#include "../tools/mtmd/clip-impl.h"
+#include "ggml-cpp.h"
+#include "llama-grammar.h"
 #include "llama-impl.h"
 #include "llama-vocab.h"
-#include "llama-grammar.h"
 
-#include "ggml-cpp.h"
-
-#include <array>
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cfloat>
 #include <chrono>
@@ -17,8 +17,8 @@
 #include <ctime>
 #include <numeric>
 #include <random>
-#include <unordered_map>
 #include <stdexcept>
+#include <unordered_map>
 
 // the ring buffer works similarly to std::deque, but with a fixed capacity
 template<typename T>
@@ -1039,6 +1039,8 @@ static void llama_sampler_dist_apply(struct llama_sampler * smpl, llama_token_da
     std::uniform_real_distribution<double> dist(0.0f, 1.0f);
     const double rnd = dist(ctx->rng);
 
+    // LLAMA_LOG_INFO("DIST INIT: %f\n", rnd);
+
     // edge cases
     if (cur_p->size == 0) {
         cur_p->selected = -1;
@@ -1084,6 +1086,8 @@ static void llama_sampler_dist_apply(struct llama_sampler * smpl, llama_token_da
             if (sum_run >= sum_tgt) {
                 cur_p->selected = i;
                 found = true;
+                // LLAMA_LOG_INFO("  INPUT : max: %f, cs: %f, tgt: %f, run: %f\n", max_l, sum_cum, sum_tgt, sum_run);
+                // LLAMA_LOG_INFO("  OUTPUT: idx: %lu, id: %d, p: %f\n", i, cur_p->data[i].id, cur_p->data[i].p);
             }
         }
 

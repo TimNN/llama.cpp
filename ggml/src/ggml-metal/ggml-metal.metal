@@ -10625,3 +10625,105 @@ kernel void kernel_count_equal(
 typedef decltype(kernel_count_equal<int32_t>) kernel_count_equal_t;
 
 template [[host_name("kernel_count_equal_i32")]] kernel kernel_count_equal_t kernel_count_equal<int32_t>;
+
+kernel void kernel_top_n_sigma_f32(
+        constant ggml_metal_kargs_top_n_sigma & args,
+        device const float * src0,
+        device       float * dst,
+        threadgroup  float * shmem [[threadgroup(0)]],
+        uint3 tgpig[[threadgroup_position_in_grid]],
+        uint3 tpitg[[thread_position_in_threadgroup]],
+        uint  sgitg[[simdgroup_index_in_threadgroup]],
+        uint  tiisg[[thread_index_in_simdgroup]],
+        uint3 tptg[[threads_per_threadgroup]]) {
+
+    const int32_t row_idx = tgpig.x;
+    device const float * psrc = src0 + row_idx * args.ne00;
+    device       float * pdst = dst  + row_idx * args.ne00;
+
+    float lmax = -INFINITY;
+    float lsum = 0.0f;
+    int lcount = 0;
+
+    // Pass 1: Max, Sum, and Count
+    for (int i = tpitg.x; i < args.ne00; i += tptg.x) {
+        float val = psrc[i];
+        if (val != -INFINITY) {
+            lmax = max(lmax, val);
+            lsum += val;
+            lcount++;
+        }
+    }
+
+    // SIMD reductions
+    float max_val = simd_max(lmax);
+    float sum_val = simd_sum(lsum);
+    int count_val = simd_sum(lcount);
+
+    // Threadgroup reductions
+    threadgroup float* buf_max = shmem;
+    threadgroup float* buf_sum = shmem + 32;
+    threadgroup int*   buf_cnt = (threadgroup int*)(shmem + 64);
+
+    if (tptg.x > 32) {
+        if (sgitg == 0) {
+            buf_max[tiisg] = -INFINITY;
+            buf_sum[tiisg] = 0.0f;
+            buf_cnt[tiisg] = 0;
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        if (tiisg == 0) {
+            buf_max[sgitg] = max_val;
+            buf_sum[sgitg] = sum_val;
+            buf_cnt[sgitg] = count_val;
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        max_val = buf_max[tiisg];
+        sum_val = buf_sum[tiisg];
+        count_val = buf_cnt[tiisg];
+
+        max_val = simd_max(max_val);
+        sum_val = simd_sum(sum_val);
+        count_val = simd_sum(count_val);
+    }
+
+    float mean = count_val > 0 ? sum_val / count_val : 0.0f;
+
+    // Pass 2: Variance
+    float lacc = 0.0f;
+    for (int i = tpitg.x; i < args.ne00; i += tptg.x) {
+        float val = psrc[i];
+        if (val != -INFINITY) {
+            float diff = val - mean;
+            lacc += diff * diff;
+        }
+    }
+
+    float acc_val = simd_sum(lacc);
+
+    if (tptg.x > 32) {
+        if (sgitg == 0) {
+            buf_sum[tiisg] = 0.0f; // Reuse buf_sum for memory efficiency
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        if (tiisg == 0) {
+            buf_sum[sgitg] = acc_val;
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        acc_val = buf_sum[tiisg];
+        acc_val = simd_sum(acc_val);
+    }
+
+    float std_val = count_val > 0 ? sqrt(acc_val / count_val) : 0.0f;
+    float threshold = max_val - (args.n * std_val);
+
+    // Pass 3: Masking
+    for (int i = tpitg.x; i < args.ne00; i += tptg.x) {
+        float val = psrc[i];
+        pdst[i] = (val < threshold) ? -INFINITY : val;
+    }
+}

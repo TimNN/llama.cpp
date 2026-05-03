@@ -2242,6 +2242,8 @@ void ggml_compute_forward_fill(const ggml_compute_params * params, ggml_tensor *
 // ggml_compute_top_n_sigma
 
 void ggml_compute_forward_top_n_sigma(const ggml_compute_params * params, ggml_tensor * dst) {
+    GGML_UNUSED(params);
+
     const float n = ggml_get_op_params_f32(dst, 0);
 
     const ggml_tensor * logits = dst->src[0];
