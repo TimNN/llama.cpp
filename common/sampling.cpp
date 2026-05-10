@@ -2,13 +2,13 @@
 
 #include "common.h"
 #include "fit.h"
+#include "ggml.h"
 #include "log.h"
 #include "reasoning-budget.h"
 
-#include "ggml.h"
-
 #include <algorithm>
 #include <cctype>
+#include <cinttypes>
 #include <climits>
 #include <cmath>
 #include <cstring>
@@ -554,20 +554,29 @@ llama_token common_sampler_sample(struct common_sampler * gsmpl, struct llama_co
     {
         id = llama_get_sampled_token_ith(ctx, idx);
 
+        LOG_INF("%s: TNN: Got Token: %d\n", __func__, id);
+
         if (id != LLAMA_TOKEN_NULL) {
             LOG_DBG("%s: Backend sampler selected token: '%d'. Will not run any CPU samplers\n", __func__, id);
 
             GGML_ASSERT(!gsmpl->grmr    && "using grammar in combination with backend sampling is not supported");
             GGML_ASSERT(!gsmpl->rbudget && "using reasoning budget in combination with backend sampling is not supported");
 
+            bool did_select = false;
             for (size_t i = 0; i < cur_p.size; ++i) {
                 if (cur_p.data[i].id == id) {
+                    LOG_INF("%s: TNN: DO SELECT: %lu\n", __func__, i);
                     cur_p.selected = i;
+                    did_select = true;
                     break;
                 }
             }
 
-            return id;
+            LOG_INF("%s: TNN: ACTUAL SELECT: %" PRId64 "\n", __func__, cur_p.selected);
+
+            if (did_select) {
+                return id;
+            }
         }
     }
 
@@ -583,6 +592,7 @@ llama_token common_sampler_sample(struct common_sampler * gsmpl, struct llama_co
     id = cur_p.data[cur_p.selected].id;
 
     if (grammar_first || !grammar_should_apply(gsmpl)) {
+        LOG_INF("%s: TNN: Got Token V2: %d\n", __func__, id);
         return id;
     }
 

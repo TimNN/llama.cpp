@@ -1070,6 +1070,8 @@ static void llama_sampler_dist_apply(struct llama_sampler * smpl, llama_token_da
         sum_cum += p;
     }
 
+    // LLAMA_LOG_INFO("DIST CUM_SUM: %f\n", sum_cum);
+
 #if 1
     // sample from the obtained probabilities and normalize the probs in a single pass
     // this is ~3x faster on Mac with full gpt-oss vocab than the version below
